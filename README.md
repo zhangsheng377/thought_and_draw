@@ -73,7 +73,7 @@ def image_to_token_sequence(pixels):
 ```text
 用户: 请画一个太阳
 模型: <think>用户要求画一个太阳。太阳是一个明亮的圆形天体，为地球提供光和热。首先需要生成一个圆形的太阳图像，然后再添加一些射线表示光芒。</think>
-好的，这是一个简单的太阳图像：<|Image|>[PX0][PX0]...[PX255]...[PX0]</|Image|>
+好的，这是一个简单的太阳图像：<|vision_start|>[PX0][PX0]...[PX255]...[PX0]<|vision_end|>
 ```
 具体的思考过程描述我可以让qwen-vl生成。
 
