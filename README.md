@@ -4,7 +4,7 @@
 在前一段时间玩Stadle Diffusion时，我发现这种sd架构的多模态模型其实对于语言的理解能力并不好（传统的sd xl模型甚至要把语言描述浓缩为一个一个独立的词，flux模型稍好一些，但依然不能通过语言精确地控制图像的生成）。
 
 ![sd架构](https://i-blog.csdnimg.cn/blog_migrate/3c06a151a42ee33e1e7f94bcd0ef051a.png#pic_center)
-![Stable Diffusion中的CrossAttention结构](https://picx.zhimg.com/v2-4073d371ab72a7b1cc855a1c149b1d73_r.jpg){:height="400px" width="200px"}
+![Stable Diffusion中的CrossAttention结构](https://picx.zhimg.com/v2-4073d371ab72a7b1cc855a1c149b1d73_r.jpg =100x100){:height="400px" width="200px"}
 我觉得，其根本原因应该是因为sd架构利用文本编码器（一般是clip，产生77*768维度）（77个词太小了，就算分组叠加取平均，还是破坏了深层语义）所生成的向量，只是简单的用cross-attention将文本向量与图片向量相融合，这样势必会导致以下三种结果：
 
 1. 模型将这77个文本embedding相互独立看待，所以生成的要去除的噪声图像就只是趋近于这77个词的语义空间，那么就会导致文本prompt变成一个一个词才是最适配模型的。（现状）
