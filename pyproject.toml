@@ -1,0 +1,16 @@
+[project]
+name = "thought-and-draw"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.12"
+dependencies = [
+    "accelerate>=1.10.1",
+    "datasets>=4.0.0",
+    "future>=1.0.0",
+    "matplotlib>=3.10.6",
+    "modelscope>=1.29.2",
+    "peft>=0.17.1",
+    "qwen-vl-utils>=0.0.11",
+    "torchvision>=0.23.0",
+    "transformers>=4.56.1",
+]
