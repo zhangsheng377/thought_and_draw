@@ -62,7 +62,7 @@ train_dataset = load_dataset(
     data_files=os.path.join(data_path, "*/train*.parquet"),
     split="train",  # 关键优化：直接获取Dataset对象
     num_proc=4,  # 使用多进程加速加载（根据CPU核心数调整）
-    # keep_in_memory=False  # 大数据集时避免内存溢出
+    keep_in_memory=False  # 大数据集时避免内存溢出
 )
 print(train_dataset)
 print(train_dataset[0])
@@ -101,7 +101,7 @@ def mnist_prepare(batch):
         }]
         input_text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
 
-        target_text = f"<think>\n这张图片展示了一个简单的数字\"{label}\"。它是一个黑色的数字，背景是白色的。这个数字是用某种字体或书写工具绘制的。图片非常简洁，没有其他背景元素或装饰。\n</think>\n\n好的，这是一个简单的{label}图像："
+        target_text = f"<think>\n我需要画一个简单的数字\"{label}\"。它是一个黑色的数字，背景是白色的。字体可以用近似书写工具绘制的。图片非常简洁，没有其他背景元素或装饰。分辨率为28*28。\n</think>\n\n好的，这是一个简单的{label}图像："
 
         input_ids = tokenizer.encode(input_text, add_special_tokens=False)
         target_ids = tokenizer.encode(target_text, add_special_tokens=False)
@@ -134,12 +134,15 @@ training_args = TrainingArguments(
     output_dir=lora_path,
     per_device_train_batch_size=4,
     gradient_accumulation_steps=16,
-    learning_rate=2e-5,
-    num_train_epochs=1,
+    learning_rate=1e-4,
+    warmup_ratio=0.01,
+    num_train_epochs=5,
     logging_steps=1,
     save_strategy="epoch",
     bf16=True,
-    report_to="none",
+    report_to="tensorboard",
+    run_name="epoch5",
+    logging_dir="logging_dir",
 )
 # selected_dataset = train_dataset.select(range(1000))
 # print("Selected dataset size:", len(selected_dataset))
@@ -159,3 +162,4 @@ model.save_pretrained(
     lora_path,
     save_embedding_layers=True  # Ensures resized embeddings are saved
 )
+tokenizer.save_pretrained(lora_path)

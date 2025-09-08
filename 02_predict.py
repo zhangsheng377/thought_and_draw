@@ -5,14 +5,8 @@ from peft import PeftModel
 model_path = "/mnt/nfs_fn/zsd_server/models/huggingface/Qwen3-4B"
 lora_path = "./save_model"
 
-# 新增特殊标记
-SPECIAL_TOKENS = {
-    **{f"[PX{i}]": f"[PX{i}]" for i in range(256)}  # 灰度像素标记
-}
-
-tokenizer = AutoTokenizer.from_pretrained(model_path)
-tokenizer.add_special_tokens({'additional_special_tokens': list(SPECIAL_TOKENS.values())})
-model = AutoModelForCausalLM.from_pretrained(model_path, dtype=torch.bfloat16, device_map='cuda',)
+tokenizer = AutoTokenizer.from_pretrained(lora_path)
+model = AutoModelForCausalLM.from_pretrained(model_path, dtype=torch.bfloat16, device_map='cuda', )
 model.resize_token_embeddings(len(tokenizer))
 model = PeftModel.from_pretrained(model=model,
                                   model_id=lora_path,
