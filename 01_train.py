@@ -19,7 +19,9 @@ lora_path = "./save_model"
 
 # 新增特殊标记
 SPECIAL_TOKENS = {
-    **{f"[PX{i}]": f"[PX{i}]" for i in range(256)}  # 灰度像素标记
+    "<|PX_line_start|>": "<|PX_line_start|>",
+    "<|PX_line_end|>": "<|PX_line_end|>",
+    **{f"<|PX{i}|>": f"<|PX{i}|>" for i in range(256)}  # 灰度像素标记
 }
 
 tokenizer = AutoTokenizer.from_pretrained(model_path)
@@ -70,13 +72,20 @@ print(train_dataset[0])
 
 def process_image(image, size=(28, 28)):
     img = image.convert('L').resize(size)
-    pixels = np.array(img).flatten()  # 转为1024个灰度值
+    pixels = np.array(img)
     return pixels
 
 
 def image_to_token_sequence(pixels):
     """将像素值转换为token ID序列"""
-    pixel_tokens = [tokenizer.convert_tokens_to_ids(f"[PX{int(p)}]") for p in pixels]
+    px_line_start_id = tokenizer.encode("<|PX_line_start|>", add_special_tokens=False)[0]
+    px_line_end_id = tokenizer.encode("<|PX_line_end|>", add_special_tokens=False)[0]
+    pixel_tokens = []
+    for line_pixels in pixels:
+        pixel_tokens.append(px_line_start_id)
+        for p in line_pixels:
+            pixel_tokens.append(tokenizer.convert_tokens_to_ids(f"<|PX{int(p)}|>"))
+        pixel_tokens.append(px_line_end_id)
     return pixel_tokens
 
 
@@ -97,11 +106,11 @@ def mnist_prepare(batch):
 
         messages = [{
             "role": "user",
-            "content": f"请画一个{label}",
+            "content": f"请生成一个28*28像素的手写数字{label}。",
         }]
         input_text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
 
-        target_text = f"<think>\n我需要画一个简单的数字\"{label}\"。它是一个黑色的数字，背景是白色的。字体可以用近似书写工具绘制的。图片非常简洁，没有其他背景元素或装饰。分辨率为28*28。\n</think>\n\n好的，这是一个简单的{label}图像："
+        target_text = f"<think>\n用户需要我生成一个手写数字“{label}”。图像应为28x28像素的灰度图，背景为白色，数字为黑色。数字应具有手写字体特征，笔画可能有轻微的不规则感，整体居于图像中央。\n</think>\n\n好的，这是一个手写数字 {label} 的图像："
 
         input_ids = tokenizer.encode(input_text, add_special_tokens=False)
         target_ids = tokenizer.encode(target_text, add_special_tokens=False)
@@ -130,6 +139,7 @@ data_collator = transformers.DataCollatorForSeq2Seq(
     # pad_to_multiple_of=ARGS.max_length,  # the max_length arg is unused to padding label
 )
 
+run_name = "line_token"
 training_args = TrainingArguments(
     output_dir=lora_path,
     per_device_train_batch_size=4,
@@ -141,8 +151,8 @@ training_args = TrainingArguments(
     save_strategy="epoch",
     bf16=True,
     report_to="tensorboard",
-    run_name="epoch5",
-    logging_dir="logging_dir",
+    run_name=run_name,
+    logging_dir=f"logging_dir/{run_name}",
 )
 # selected_dataset = train_dataset.select(range(1000))
 # print("Selected dataset size:", len(selected_dataset))
@@ -163,3 +173,5 @@ model.save_pretrained(
     save_embedding_layers=True  # Ensures resized embeddings are saved
 )
 tokenizer.save_pretrained(lora_path)
+
+# tensorboard --logdir=./logging_dir --host=0.0.0.0
