@@ -1,4 +1,5 @@
 import os
+import random
 
 import transformers
 
@@ -78,23 +79,24 @@ def process_image(image, size=(28, 28)):
 
 def image_to_token_sequence(pixels):
     """将像素值转换为token ID序列"""
-    px_line_start_id = tokenizer.encode("<|PX_line_start|>", add_special_tokens=False)[0]
-    px_line_end_id = tokenizer.encode("<|PX_line_end|>", add_special_tokens=False)[0]
-    pixel_tokens = []
+    return tokenizer.encode(image_to_text_sequence(pixels), add_special_tokens=False)
+
+
+def image_to_text_sequence(pixels):
+    """将像素值转换为text序列"""
+    pixel_str = ""
     for line_pixels in pixels:
-        pixel_tokens.append(px_line_start_id)
+        pixel_str += "<|PX_line_start|>"
         for p in line_pixels:
-            pixel_tokens.append(tokenizer.convert_tokens_to_ids(f"<|PX{int(p)}|>"))
-        pixel_tokens.append(px_line_end_id)
-    return pixel_tokens
+            pixel_str += f"<|PX{int(p)}|>"
+        pixel_str += "<|PX_line_end|>"
+    return pixel_str
 
 
 def mnist_prepare(batch):
     """处理批量数据"""
     tokenized_inputs = []
     tokenized_labels = []
-    vision_start_id = tokenizer.encode("<|vision_start|>", add_special_tokens=False)[0]
-    vision_end_id = tokenizer.encode("<|vision_end|>", add_special_tokens=False)[0]
 
     # 获取批量中的图像和标签
     images = batch["image"]
@@ -104,18 +106,12 @@ def mnist_prepare(batch):
         inverted_img = Image.eval(images[i], lambda x: 255 - x)
         label = labels[i]
 
-        messages = [{
-            "role": "user",
-            "content": f"请生成一个28*28像素的手写数字{label}。",
-        }]
-        input_text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-
-        target_text = f"<think>\n用户需要我生成一个手写数字“{label}”。图像应为28x28像素的灰度图，背景为白色，数字为黑色。数字应具有手写字体特征，笔画可能有轻微的不规则感，整体居于图像中央。\n</think>\n\n好的，这是一个手写数字 {label} 的图像："
-
-        input_ids = tokenizer.encode(input_text, add_special_tokens=False)
-        target_ids = tokenizer.encode(target_text, add_special_tokens=False)
-        image_tokens = image_to_token_sequence(process_image(image=inverted_img, size=(28, 28)))
-        target_ids = target_ids + [vision_start_id] + image_tokens + [vision_end_id] + [tokenizer.eos_token_id]
+        tasks = ["image_generate", "image_describe"]
+        choice_task = random.choice(tasks)
+        if choice_task == "image_generate":
+            input_ids, target_ids = get_input_and_target_ids_with_image_generate(inverted_img, label)
+        else:
+            input_ids, target_ids = get_input_and_target_ids_with_image_describe(inverted_img, label)
 
         full_ids = input_ids + target_ids
         labels_ids = full_ids.copy()
@@ -131,6 +127,36 @@ def mnist_prepare(batch):
     }
 
 
+def get_input_and_target_ids_with_image_generate(img, label):
+    vision_start_id = tokenizer.encode("<|vision_start|>", add_special_tokens=False)[0]
+    vision_end_id = tokenizer.encode("<|vision_end|>", add_special_tokens=False)[0]
+    messages = [{
+        "role": "user",
+        "content": f"请生成一个28*28像素的手写数字{label}。",
+    }]
+    input_text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+    target_text = f"<think>\n用户需要我生成一个手写数字“{label}”。图像应为28x28像素的灰度图，背景为白色，数字为黑色。数字应具有手写字体特征，笔画可能有轻微的不规则感，整体居于图像中央。\n</think>\n\n好的，这是一个手写数字 {label} 的图像："
+    input_ids = tokenizer.encode(input_text, add_special_tokens=False)
+    target_ids = tokenizer.encode(target_text, add_special_tokens=False)
+    image_tokens = image_to_token_sequence(process_image(image=img, size=(28, 28)))
+    target_ids = target_ids + [vision_start_id] + image_tokens + [vision_end_id] + [tokenizer.eos_token_id]
+    return input_ids, target_ids
+
+
+def get_input_and_target_ids_with_image_describe(img, label):
+    image_text = image_to_text_sequence(process_image(image=img, size=(28, 28)))
+    messages = [{
+        "role": "user",
+        "content": f"<|vision_start|>{image_text}<|vision_end|>\n请描述这张图片中的内容。",
+    }]
+    input_text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+    target_text = f"<think>\n这是一张28x28像素的手写数字图像。背景为白色，数字为黑色。数字具有手写特征，笔画有些轻微的不规则。整体上数字居中显示，图像简洁没有其他元素。数字是\"{label}\"。\n</think>\n\n这张图片展示的是手写数字{label}。"
+    input_ids = tokenizer.encode(input_text, add_special_tokens=False)
+    target_ids = tokenizer.encode(target_text, add_special_tokens=False)
+    target_ids = target_ids + [tokenizer.eos_token_id]
+    return input_ids, target_ids
+
+
 data_collator = transformers.DataCollatorForSeq2Seq(
     tokenizer,
     # return_tensors="pt",
@@ -139,7 +165,7 @@ data_collator = transformers.DataCollatorForSeq2Seq(
     # pad_to_multiple_of=ARGS.max_length,  # the max_length arg is unused to padding label
 )
 
-run_name = "line_token"
+run_name = "混合训练图像生成和理解任务"
 training_args = TrainingArguments(
     output_dir=lora_path,
     per_device_train_batch_size=4,

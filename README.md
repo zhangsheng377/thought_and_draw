@@ -105,6 +105,7 @@ def image_to_token_sequence(pixels):
 发现加入行级标签token后，由于增强了上下文信息，所以loss和grad_norm均比不加要更低。
 ![line_token_predict](./readme_pic/line_token_predict.png)
 一不小心，竟然真的能让LLM大语言模型输出图片了。
+另外，开始“混合训练图像生成和理解任务”，这也是我这个模型架构的优势之一了。
 
 
 ## TODO
