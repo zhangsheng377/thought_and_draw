@@ -2,4 +2,3 @@
 .venv
 save_model
 wandb
-logging_dir
